@@ -7,7 +7,7 @@ import json
 
 
 
-hote = "localhost"
+hote = "aerotoulousain.fr"
 port = 3333
 
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -17,11 +17,11 @@ print("Connection on {}".format(port))
 # set up pygame
 pygame.init()
 
-SCREEN_SIZE_X = 500
-SCREEN_SIZE_Y = 500
+SCREEN_SIZE_X = 100
+SCREEN_SIZE_Y = 100
 
-CELL_SIZE_X = SCREEN_SIZE_X / 100
-CELL_SIZE_Y = SCREEN_SIZE_Y / 100
+CELL_SIZE_X = SCREEN_SIZE_X / 20
+CELL_SIZE_Y = SCREEN_SIZE_Y / 20
 
 # set up the window
 windowSurface = pygame.display.set_mode((SCREEN_SIZE_X, SCREEN_SIZE_Y), 0, 32)
@@ -50,30 +50,39 @@ x = 0
 
 def pull_map():
     while True:
-        socket.send(b"GET MAP")
+        socket.send(b"GET MAP;")
 
-        buffer = socket.recv(4096)
+        buffer = socket.recv(1024*48)
         data = buffer
-        while len(buffer) == 4096:
-            buffer = socket.recv(4096)
+        while len(buffer) == 1024*48:
+            buffer = socket.recv(1024*48)
             data += buffer
 
-        data_json = json.loads(data.decode("utf-8"))
-        windowSurface.fill(BLACK)
-        for x in range(len(data_json)):
-            for y in range(len(data_json[x])):
-                cell = data_json[x][y]
-                if cell["Alive"]:
-                    print(cell)
-                    pygame.draw.rect(windowSurface, GREEN, (x * CELL_SIZE_X, y * CELL_SIZE_Y, CELL_SIZE_X, CELL_SIZE_Y))
-                    pygame.display.update()
-        time.sleep(.5)
+        data_json = []
+        try:
+            data_str = data.decode("utf-8")
+            data_strs = data_str.split(";")
+            data_json = json.loads(data_strs[0])
+
+            windowSurface.fill(BLACK)
+            for x in range(len(data_json)):
+                for y in range(len(data_json[x])):
+                    cell = data_json[x][y]
+                    if cell["Alive"]:
+                        pygame.draw.rect(windowSurface, GREEN, (x * CELL_SIZE_X, y * CELL_SIZE_Y, CELL_SIZE_X, CELL_SIZE_Y))
+            pygame.display.update()
+            # time.sleep(.5)
+        except ValueError:
+            print(ValueError)
+
+
 
 
 
 t = Thread(target=pull_map, args=())
 t.start()
 
+draging = False
 # run the game loop
 while True:
     # socket.send(b"Hey my name is Olivier!")
@@ -82,12 +91,26 @@ while True:
             pygame.quit()
             socket.close()
             sys.exit()
-        if event.type == MOUSEBUTTONUP:
+        if event.type == MOUSEBUTTONDOWN:
+            draging = True
             pos = pygame.mouse.get_pos()
             pos_x = int(pos[0] // CELL_SIZE_X)
             pos_y = int(pos[1] // CELL_SIZE_Y)
-            message = "ADD " + str(pos_x) + " " + str(pos_y)
+            message = "ADD " + str(pos_x) + " " + str(pos_y) + ";"
             pygame.draw.rect(windowSurface, GREEN, (pos_x * CELL_SIZE_X, pos_y * CELL_SIZE_Y, CELL_SIZE_X, CELL_SIZE_Y))
             pygame.display.update()
             arr = bytearray(message, 'utf-8')
-            socket.send(arr)
+            socket.sendall(arr)
+        if event.type == MOUSEBUTTONUP:
+            draging = False
+        if event.type == MOUSEMOTION and draging:
+            pos = pygame.mouse.get_pos()
+            pos_x = int(pos[0] // CELL_SIZE_X)
+            pos_y = int(pos[1] // CELL_SIZE_Y)
+            message = "ADD " + str(pos_x) + " " + str(pos_y) + ";"
+            pygame.draw.rect(windowSurface, GREEN, (pos_x * CELL_SIZE_X, pos_y * CELL_SIZE_Y, CELL_SIZE_X, CELL_SIZE_Y))
+            pygame.display.update()
+            arr = bytearray(message, 'utf-8')
+            socket.sendall(arr)
+
+
